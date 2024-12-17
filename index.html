@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot and File Upload</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/script.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Chat Section -->
+        <div id="chatbox">
+            <div id="messages">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="chat-input-container">
+                <input type="text" id="user-message" placeholder="Type a message..." />
+                <button id="send-btn">Send</button>
+            </div>
+        </div>
+
+        <!-- File Upload Section -->
+        <div id="upload-section">
+            <h3>Upload CSV for Fraud Detection</h3>
+            <form id="upload-form" enctype="multipart/form-data">
+                <input type="file" id="csv-file" name="file" accept=".csv" />
+                <button type="submit" id="upload-btn">Upload</button>
+            </form>
+        </div>
+
+        <!-- Anomalies Table (hidden initially) -->
+        <div id="anomalies-table" style="display: none;">
+            <h3>Detected Anomalies</h3>
+            <table id="anomalies">
+                <!-- Dynamic Table Rows will be appended here -->
+            </table>
+        </div>
+    </div>
+</body>
+</html>

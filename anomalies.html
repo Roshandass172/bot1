@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud Detection - Anomalies</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .anomaly {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-semibold text-center text-gray-900 mb-6">Fraud Detection Anomalies</h1>
+
+    <!-- Anomalies Table -->
+    <table class="min-w-full bg-white border border-gray-300 shadow-md rounded-lg">
+        <thead class="bg-green-500 text-white">
+            <tr>
+                <th class="px-4 py-2 text-left">Transaction ID</th>
+                <th class="px-4 py-2 text-left">Amount</th>
+                <th class="px-4 py-2 text-left">Timestamp</th>
+                <th class="px-4 py-2 text-left">Anomaly Detected</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for anomaly in anomalies %}
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-2">{{ anomaly.transaction_id }}</td>
+                    <td class="px-4 py-2 {% if anomaly.anomaly == -1 %} anomaly {% endif %}">
+                        ${{ anomaly.amount }}
+                    </td>
+                    <td class="px-4 py-2">{{ anomaly.timestamp }}</td>
+                    <td class="px-4 py-2 {% if anomaly.anomaly == -1 %} anomaly {% endif %}">
+                        {% if anomaly.anomaly == -1 %} Anomaly {% else %} Normal {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Button to reload or go back -->
+    <div class="flex justify-center mt-6">
+        <a href="/" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg shadow-md">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
