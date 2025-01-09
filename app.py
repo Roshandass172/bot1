@@ -3,32 +3,24 @@ from werkzeug.utils import secure_filename
 import os
 import pandas as pd
 from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
 from reportlab.pdfgen import canvas
+from sklearn.ensemble import IsolationForest
 from train_model import detect_anomalies
+
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = './uploads'
-app.config['PDF_FOLDER'] = './pdfs'  # Folder to store PDFs
+app.config['PDF_FOLDER'] = './pdfs'
 
-# Ensure the PDFs folder exists
+# Ensure folders exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['PDF_FOLDER'], exist_ok=True)
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/chat', methods=['POST'])
-def chat():
-    user_message = request.json.get('message', '').lower()
-    # Sample intents
-    if 'hello' in user_message:
-        response = "Hello! How can I assist you today?"
-    elif 'fraud' in user_message:
-        response = "You can upload a CSV file for fraud detection below."
-    else:
-        response = "I'm sorry, I don't understand. Could you rephrase?"
-    return jsonify({'response': response})
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -44,9 +36,13 @@ def upload():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        anomalies = detect_anomalies(filepath)
+        # Process file for anomalies
+        try:
+            anomalies = process_file(filepath)
+        except Exception as e:
+            return jsonify({"error": str(e)})
 
-        # Convert DataFrame to a list of dictionaries for JSON response
+        # Convert to JSON response
         anomalies_json = anomalies.to_dict(orient='records')
 
         # Generate PDF
@@ -56,42 +52,92 @@ def upload():
 
         return jsonify({
             "anomalies": anomalies_json,
-            "pdf_url": f"/download/{pdf_filename}"  # Provide the link to download the PDF
+            "pdf_url": f"/download/{pdf_filename}"
         })
 
     return jsonify({"error": "Invalid file format"})
 
 
+from sklearn.ensemble import IsolationForest  # Ensure this is imported
+
+def process_file(filepath):
+    try:
+        anomalies = detect_anomalies(filepath)  # Use your trained model
+    except ValueError as e:
+        raise ValueError(f"Error processing file: {str(e)}")
+
+    return anomalies[['agmtno', 'Predicted Valuation', 'NET_LOSS', 'Difference (%)', 'reason']]
+
+
+def get_reason(row, columns):
+    """
+    Analyze the row and supporting columns to determine the likely cause of anomaly.
+    """
+    reasons = []
+
+    # Check for extreme difference percentages
+    if row['Difference (%)'] > 50:
+        reasons.append("NET_LOSS significantly exceeds Predicted Valuation")
+    elif row['Difference (%)'] < -20:
+        reasons.append("Predicted Valuation is too high compared to NET_LOSS")
+
+    # Loan-related analysis
+    if 'LTV' in columns and row.get('LTV', 0) > 80:
+        reasons.append("High Loan-to-Value ratio, indicating risky lending")
+
+    # Region-related analysis
+    if 'STATE' in columns and row.get('STATE') == 'Region_X':
+        reasons.append("Transactions from Region_X exhibit anomalies")
+
+    # Previous ownership analysis
+    if 'PREVIOUS_OWNER_COUNT' in columns and row.get('PREVIOUS_OWNER_COUNT', 0) > 2:
+        reasons.append("Asset has multiple previous owners, reducing valuation")
+
+    return "; ".join(reasons) if reasons else "No significant anomaly"
+
+
 def create_pdf(anomalies, filepath):
     c = canvas.Canvas(filepath, pagesize=letter)
     c.setFont("Helvetica", 10)
-    
+
     # Set Title
     c.setFont("Helvetica-Bold", 14)
     c.drawString(200, 770, "Anomalies Report")
 
     # Add headers
+    headers = ['Transaction ID', 'Predicted Valuation', 'NET_LOSS', 'Difference (%)', 'Reason']
+    x_positions = [30, 120, 230, 340, 450]
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(30, 740, "Transaction ID")
-    c.drawString(150, 740, "Amount")
-    c.drawString(270, 740, "Anomaly")
-    c.drawString(380, 740, "Timestamp")
+    for i, header in enumerate(headers):
+        c.drawString(x_positions[i], 740, header)
 
     # Add data
     c.setFont("Helvetica", 10)
     y_position = 720
-    for anomaly in anomalies.itertuples():
-        c.drawString(30, y_position, str(anomaly.transaction_id))
-        c.drawString(150, y_position, f"${anomaly.amount}")
-        c.drawString(270, y_position, str(anomaly.anomaly))
-        c.drawString(380, y_position, str(anomaly.timestamp))
+    for _, row in anomalies.iterrows():
+        values = [
+            str(row['agmtno']),
+            f"${row['Predicted Valuation']:.2f}",
+            f"${row['NET_LOSS']:.2f}",
+            f"{row['Difference (%)']:.2f}%",
+            row['reason']
+        ]
+        for i, value in enumerate(values):
+            c.drawString(x_positions[i], y_position, value)
         y_position -= 20
 
+        # Move to next page if space is insufficient
+        if y_position < 50:
+            c.showPage()
+            y_position = 750
+
     c.save()
+
 
 @app.route('/download/<filename>')
 def download_pdf(filename):
     return send_from_directory(app.config['PDF_FOLDER'], filename)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
